@@ -1,5 +1,5 @@
 from os import listdir
-from random import shuffle
+from random import shuffle, randint
 import tensorflow as tf
 from PIL import Image
 from io import BytesIO
@@ -12,6 +12,7 @@ validationSizePercentage = 0.1
 testSizePercentage = 0.2
 imgWidth = 28
 imgSize = imgWidth * imgWidth
+extraTestPercentage = 0
 
 files = []
 for i in matchvalues:
@@ -26,13 +27,36 @@ learnSet = files[0:learnSize]
 validationSet = files[learnSize: learnSize + validationSize]
 testSet = files[learnSize + validationSize:]
 
+if extraTestPercentage > 0:
+    for learnSetIndex in range(0 , learnSize):
+        if randint(0, 100) < extraTestPercentage * 100:
+            currentLearnImage = learnSet[learnSetIndex]
+            transformation = "rotate" if randint(0, 1) == 0 else "shift"
+            newLearnImage = {"file" : currentLearnImage['file'], "letter" : currentLearnImage['letter'], "transformation" : transformation}
+            learnSet.append(newLearnImage)
+            learnSize += 1
+    #re shuffle test data to mix generated images with original images
+    shuffle(learnSet)
+
+
 def readFile(file):
-    try:
-        image = Image.open(file)
+        image = Image.open(file['file'])
+        if "transformation" in file.keys():
+            if file["transformation"] == "rotate":
+                rotation = randint(-20, 20);
+                image = image.rotate(rotation)
+            if file["transformation"] == "shift":
+                #move lose up to 2 bytes in each side
+                lossMax = 5
+                rightLoss = randint(0, lossMax)
+                leftLoss = randint(0, lossMax)
+                upLoss = randint(0, lossMax)
+                downLoss = randint(0, lossMax)
+                box = (rightLoss, upLoss, imgWidth - rightLoss - leftLoss, imgWidth - upLoss - leftLoss)
+                crop = image.crop(box)
+                image = Image.new("L", (imgWidth, imgWidth), color=0)
+                image.paste(crop, box)
         return [int(byte.encode('hex'), 16) for byte in image.tobytes()]
-    except:
-        #print file which is "corrupted"
-        print file
 
 batchSize = int(round(learnSize * batchPercentage))
 batchCount = learnSize / batchSize
@@ -40,7 +64,6 @@ class BatchGenerator:
     def __init__(self):
         self.currentBatch = 0
     def generateBatch(self):
-
         currentIndex = self.currentBatch * batchSize + batchSize
         self.currentBatch +=1
         return getXsYs(learnSet[currentIndex - batchSize:currentIndex])
@@ -61,7 +84,7 @@ def getLetter(yIndex):
     return unichr(ord('A') + yIndex)
 
 def getXsYs(batch):
-    xs = [normalize(readFile(file['file'])) for file in batch]
+    xs = [normalize(readFile(file)) for file in batch]
     ys = [getY_(file['letter']) for file in batch]
     return (xs, ys)
 ###### Model First Iteration  ######
@@ -86,6 +109,7 @@ batchGenerator = BatchGenerator()
 for i in range(0, batchCount):
   batch_xs, batch_ys = batchGenerator.generateBatch()
   sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+
 
 
 
