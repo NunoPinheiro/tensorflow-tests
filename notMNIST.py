@@ -1,7 +1,8 @@
 from os import listdir
 from random import shuffle
 import tensorflow as tf
-import png
+from PIL import Image
+from io import BytesIO
 
 matchvalues = "ABCDEFGHIJ"
 dataFolder = "notMNIST_small/"
@@ -9,7 +10,8 @@ learnSizePercentage = 0.7
 batchPercentage = 0.01
 validationSizePercentage = 0.1
 testSizePercentage = 0.2
-imgSize = 28 * 28
+imgWidth = 28
+imgSize = imgWidth * imgWidth
 
 files = []
 for i in matchvalues:
@@ -26,9 +28,8 @@ testSet = files[learnSize + validationSize:]
 
 def readFile(file):
     try:
-        reader = png.Reader(filename=file)
-        w, h, pixels, metadata = reader.read_flat()
-        return pixels
+        image = Image.open(file)
+        return [int(byte.encode('hex'), 16) for byte in image.tobytes()]
     except:
         #print file which is "corrupted"
         print file
